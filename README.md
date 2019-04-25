@@ -1,6 +1,6 @@
 # REPack
 
-Reverse Engieers toolkit for exploit/malware analysis
+Reverse engineering toolkit for exploit/malware analysis
 
 ## IDA
 
