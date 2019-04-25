@@ -39,7 +39,7 @@
 
 | File | Description |
 | :--- | :---------- |
-| PETool.py | |
+| PETool.py | Tool to fix section from the carved PE image: %REPACK%\Src\PE\PETool.py -c fix msidntfs.bin msidntfs.fixed.bin  |
 
 ## WinDBG
 
