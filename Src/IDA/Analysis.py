@@ -1305,7 +1305,7 @@ class Disasm:
                 ea+=get_item_size(ea)
         return function_notes
 
-    def SaveInstructionNotations(self, filename='AreaInformation.db'):        
+    def SaveInstructionNotations(self, filename='Notations.db'):        
         try:
             conn = sqlite3.connect(filename)
         except:
@@ -1314,7 +1314,7 @@ class Disasm:
         c = conn.cursor()
 
         create_table_sql = """CREATE TABLE
-                            IF NOT EXISTS AreaInformation (
+                            IF NOT EXISTS Notations (
                                 id integer PRIMARY KEY,
                                 Address text,
                                 HashType text NOT NULL,
@@ -1330,7 +1330,7 @@ class Disasm:
 
         for (address, function_hash, sequence, type, value) in self.GetInstructionNotations():
             try:
-                c.execute('INSERT INTO AreaInformation (Address, HashType, HashParam, Hash, Sequence, Type, Value) VALUES (?,?,?,?,?,?,?)',
+                c.execute('INSERT INTO Notations (Address, HashType, HashParam, Hash, Sequence, Type, Value) VALUES (?,?,?,?,?,?,?)',
                     (str(address), 'FunctionHash', '', function_hash, sequence, type, value))
             except:
                 print 'address:', address
@@ -1342,7 +1342,7 @@ class Disasm:
         conn.commit()
         conn.close()
         
-    def LoadInstructionNotations(self, filename='AreaInformation.db',hash_types=['Op','imm_operand']):        
+    def LoadInstructionNotations(self, filename='Notations.db',hash_types=['Op','imm_operand']):        
         try:
             conn = sqlite3.connect(filename)
         except:
@@ -1351,7 +1351,7 @@ class Disasm:
         c = conn.cursor()
         
         information={}
-        for (id, address, hash_type, hash_param, hash, seq, type, value) in c.execute('SELECT * FROM AreaInformation'):
+        for (id, address, hash_type, hash_param, hash, seq, type, value) in c.execute('SELECT * FROM Notations'):
             address = int(address)
             information[address]=[type, value]
 

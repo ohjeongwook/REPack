@@ -19,6 +19,6 @@ logger=logging.getLogger(__name__)
 
 if __name__=='__main__':
     disasm=IDA.Analysis.Disasm()
-    for (address, function_hash, sequence, type, value) in disasm.GetInstructionNotations():
+    for (address, function_hash, sequence, type, value) in disasm.GetNotations():
         print '%.8x: %s+%d %s %s' % (address, function_hash, sequence, type, value)
 

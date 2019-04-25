@@ -38,5 +38,5 @@ if __name__=='__main__':
 
     if filename:
         print 'Loading file:', save_filename
-        disasm.LoadInstructionNotations(filename)
+        disasm.LoadNotations(filename)
     disasm.Exit()
