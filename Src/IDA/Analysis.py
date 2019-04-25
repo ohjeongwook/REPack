@@ -301,7 +301,7 @@ class Disasm:
     def GetSegName(self,addr):
         for i in range(0,get_segm_qty(),1):
             seg=getnseg(i)
-            seg_name=get_segm_name(seg)
+            seg_name=get_segm_name(seg.startEA)
             if seg.startEA<=addr and addr<=seg.endEA:
                 return seg_name
         return ''
@@ -1316,7 +1316,7 @@ class Disasm:
         create_table_sql = """CREATE TABLE
                             IF NOT EXISTS AreaInformation (
                                 id integer PRIMARY KEY,
-                                Address integer,
+                                Address text,
                                 HashType text NOT NULL,
                                 HashParam text,
                                 Hash text,
@@ -1330,10 +1330,14 @@ class Disasm:
 
         for (address, function_hash, sequence, type, value) in self.GetAreaInformation():
             try:
-                c.execute('INSERT INTO AreaInformation (Address, HashType, HashParam, Hash, Sequence, Type, Value) VALUES (?,?,?,?,?,?)',
-                        (address, 'FunctionHash', '', function_hash, sequence, type, value))
+                c.execute('INSERT INTO AreaInformation (Address, HashType, HashParam, Hash, Sequence, Type, Value) VALUES (?,?,?,?,?,?,?)',
+                    (str(address), 'FunctionHash', '', function_hash, sequence, type, value))
             except:
-                pass
+                print 'address:', address
+                print 'function_hash:', function_hash
+                print 'sequence:', sequence
+                print 'type:', type
+                print 'value:', value
 
         conn.commit()
         conn.close()
@@ -1345,6 +1349,11 @@ class Disasm:
             return
 
         c = conn.cursor()
+        
+        information={}
+        for (id, address, hash_type, hash_param, hash, seq, type, value) in c.execute('SELECT * FROM AreaInformation'):
+            address = int(address)
+            information[address]=[type, value]
 
         for i in range(0,get_func_qty(),1):
             func=getn_func(i)
@@ -1355,10 +1364,10 @@ class Disasm:
 
             function_hash=self.GetInstructionsHash(instructions,hash_types)
             
-            for (id, address, hash_type, hash_param, hash, seq, type, value) in c.execute('SELECT * FROM AreaInformation WHERE Hash="%s"' % function_hash):
-                if instructions.has_key(seq):
-                    address=instructions[seq]['Address']
-                print '%.8x %s %s' % ( address, type, value)
+            if information.has_key(function_hash):
+                [type, value]=information[function_hash]
+                address = func.startEA
+              
                 if type=='Comment':
                     self.SetCmt(address, value)
                 if type=='Repeatable Comment':

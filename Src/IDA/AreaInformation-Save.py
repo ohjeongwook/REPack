@@ -3,18 +3,18 @@ import os
 if os.environ.has_key('REPack'):
     sys.path.append(os.environ['REPack'])
 else:
-    sys.path.append(r'D:\Analysis\REPack\Src')
+    sys.path.append(r'..\\')
 import pprint
 import logging
 import json
 
-import IDA.Analysis
+import Analysis
 
 logging.basicConfig(level=logging.DEBUG)
 logger=logging.getLogger(__name__)
 
 if __name__=='__main__':
-    disasm=IDA.Analysis.Disasm()
+    disasm=Analysis.Disasm()
     
     save_filename=''
     if len(disasm.Args)>0:
@@ -34,7 +34,7 @@ if __name__=='__main__':
 
         form.Show()
 
-        save_filename=form.AskSaveFileName("JSON (*.json)")
+        save_filename=form.AskSaveFileName("SQLite (*.db)")
 
     if not save_filename:
         save_filename=r'AreaInformation.db'
