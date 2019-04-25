@@ -37,9 +37,9 @@ if __name__=='__main__':
         save_filename=form.AskSaveFileName("SQLite (*.db)")
 
     if not save_filename:
-        save_filename=r'AreaInformation.db'
+        save_filename=r'InstructioNotations.db'
 
     if save_filename:
-        print 'Save', save_filename
-        disasm.SaveAreaInformation(save_filename)
+        print 'Saving file:', save_filename
+        disasm.SaveInstructionNotations(save_filename)
     disasm.Exit()

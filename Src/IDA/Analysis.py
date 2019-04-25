@@ -1253,7 +1253,7 @@ class Disasm:
 
         return loops_list
 
-    def GetAreaInformation(self,hash_types=['Op','imm_operand']):
+    def GetInstructionNotations(self,hash_types=['Op','imm_operand']):
         function_notes=[]
         checked_ea={}
         for i in range(0,get_func_qty(),1):
@@ -1305,7 +1305,7 @@ class Disasm:
                 ea+=get_item_size(ea)
         return function_notes
 
-    def SaveAreaInformation(self, filename='AreaInformation.db'):        
+    def SaveInstructionNotations(self, filename='AreaInformation.db'):        
         try:
             conn = sqlite3.connect(filename)
         except:
@@ -1328,7 +1328,7 @@ class Disasm:
 
         c.execute(create_table_sql)
 
-        for (address, function_hash, sequence, type, value) in self.GetAreaInformation():
+        for (address, function_hash, sequence, type, value) in self.GetInstructionNotations():
             try:
                 c.execute('INSERT INTO AreaInformation (Address, HashType, HashParam, Hash, Sequence, Type, Value) VALUES (?,?,?,?,?,?,?)',
                     (str(address), 'FunctionHash', '', function_hash, sequence, type, value))
@@ -1342,7 +1342,7 @@ class Disasm:
         conn.commit()
         conn.close()
         
-    def LoadAreaInformation(self, filename='AreaInformation.db',hash_types=['Op','imm_operand']):        
+    def LoadInstructionNotations(self, filename='AreaInformation.db',hash_types=['Op','imm_operand']):        
         try:
             conn = sqlite3.connect(filename)
         except:

@@ -31,11 +31,12 @@ if __name__=='__main__':
 
         form.Show()
 
-        filename=form.AskSaveFileName("DB (*.db)")
+        filename=form.AskOpenFileName("DB (*.db)")
 
     if not filename:
-        filename='AreaInformation.db'
+        filename='InstructioNotations.db'
 
     if filename:
-        disasm.LoadAreaInformation(filename)
+        print 'Loading file:', save_filename
+        disasm.LoadInstructionNotations(filename)
     disasm.Exit()
