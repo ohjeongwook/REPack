@@ -41,5 +41,5 @@ if __name__=='__main__':
 
     if save_filename:
         print 'Saving file:', save_filename
-        disasm.SaveInstructionNotations(save_filename)
+        disasm.SaveNotations(save_filename, hash_types=[])
     disasm.Exit()

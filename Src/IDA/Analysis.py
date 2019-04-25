@@ -626,6 +626,9 @@ class Disasm:
         return GetManyBytes(ea, ItemSize(ea))        
 
     def GetInstruction(self,current,filter=None):
+        if not isCode(GetFlags(current)):
+            return None
+
         instruction={}
         instruction['Type']="Instruction"
         instruction['RVA']=current-self.ImageBase
@@ -899,7 +902,7 @@ class Disasm:
 
         return args
 
-    def FuncionInstructions(self,ea=None,filter=None,type='Instruction'):
+    def _GetFunctionInstructions(self,ea=None,filter=None,type='Instruction'):
         if ea==None:
             ea=self.GetSelectionStart()
 
@@ -911,16 +914,19 @@ class Disasm:
         block_starts={}
         block_ends={}
 
+        self.logger.debug('* _GetFunctionInstructions: 1')
         block_start_map={func.startEA:1}
         block_start_list=[func.startEA]
         crefs_map={}
         for block_start in block_start_list:
             current=block_start
             while 1:
+                self.logger.debug('* _GetFunctionInstructions: %x' % (current))
                 instruction=self.GetInstruction(current)
                 if instruction==None:
                     break
                     
+                self.logger.debug('* _GetFunctionInstructions: instruction is not non')
                 if self.MatchInstructionFilter(filter,instruction):                        
                     if type=='Instruction':
                         yield instruction
@@ -952,6 +958,7 @@ class Disasm:
                                 block_starts[cref]=1
                     break
 
+                self.logger.debug('* _GetFunctionInstructions: get_item_size(current)=%x' % (get_item_size(current)))
                 current+=get_item_size(current)
 
             if type=='Block':
@@ -1026,13 +1033,13 @@ class Disasm:
         
     def GetFunctionInstructions(self,ea=None,filter=None):
         instructions=[]
-        for instruction in self.FuncionInstructions(ea,filter=filter):
+        for instruction in self._GetFunctionInstructions(ea,filter=filter):
             instructions.append(instruction)
         return instructions
         
     def GetFunctionBlocks(self,ea=None,filter=None):
         blocks=[]
-        for (block_start,block_end,instructions) in self.FuncionInstructions(ea,filter=filter,type='Block'):
+        for (block_start,block_end,instructions) in self._GetFunctionInstructions(ea,filter=filter,type='Block'):
             blocks.append((block_start,block_end,instructions))
         return blocks
 
@@ -1040,7 +1047,7 @@ class Disasm:
         instructions=[]
         src_map={}
         dst_map={}
-        for (src,src_end, dst) in self.FuncionInstructions(ea,type='Map'):
+        for (src,src_end, dst) in self._GetFunctionInstructions(ea,type='Map'):
             if not src_map.has_key(src):
                 src_map[src]=[]
 
@@ -1053,7 +1060,7 @@ class Disasm:
         return (src_map, dst_map)
 
     def GetBlockInstructions(self,ea=None,filter=None):
-        for (block_start,block_end,instructions) in self.FuncionInstructions(ea,filter=filter,type='Block'):
+        for (block_start,block_end,instructions) in self._GetFunctionInstructions(ea,filter=filter,type='Block'):
             if block_start<=ea and ea<=block_end:
                 return instructions
         return []
@@ -1063,7 +1070,7 @@ class Disasm:
         call_refs=[]
         instructions=[]
 
-        for instruction in self.FuncionInstructions(ea,filter=filter):
+        for instruction in self._GetFunctionInstructions(ea,filter=filter):
             if instruction['IsIndirectRegCall']:
                 indirect_reg_call_refs.append((instruction['Address'],instruction['Operands']))
 
@@ -1260,49 +1267,60 @@ class Disasm:
             for instruction in self.GetFunctionInstructions(func.startEA):
                 instructions.append(instruction)
 
-            function_hash=self.GetInstructionsHash(instructions,hash_types)
+            if len(hash_types)>0:
+                function_hash=self.GetInstructionsHash(instructions,hash_types)
+                self.logger.debug('* %s' % (function_hash))
+            else:
+                function_hash=''
 
-            self.logger.debug('* %s' % (function_hash))
             sequence=0
             for instruction in instructions:
                 checked_ea[instruction['Address']]=1
                 address=instruction['RVA']
                 if instruction['Name']:
-                    self.logger.debug('* \t+%.3x Name: %s' % (sequence, instruction['Name']))
+                    self.logger.debug('* \t+Name: %s' % (instruction['Name']))
                     function_notes.append((address, function_hash, sequence, 'Name', instruction['Name']))
 
                 if instruction['Comment']:
-                    self.logger.debug('* \t+%.3x Comment: %s' % (sequence, instruction['Comment']))
+                    self.logger.debug('* \t+Comment: %s' % (instruction['Comment']))
                     function_notes.append((address, function_hash, sequence, 'Comment', instruction['Comment']))
 
                 if instruction['Repeatable Comment']:
-                    self.logger.debug('* \t+%.3x Repeatable Comment: %s' % (sequence, instruction['Repeatable Comment']))
+                    self.logger.debug('* \t+Repeatable Comment: %s' % (instruction['Repeatable Comment']))
                     function_notes.append((address, function_hash, sequence, 'Repeatable Comment', instruction['Repeatable Comment']))
                 sequence+=1
 
+        self.logger.debug('Scanning segments for non-instructions and non-scanned instructions')
         for i in range(0,get_segm_qty(),1):
             seg=getnseg(i)
+            self.logger.debug('* seg.startEA=%x' % (seg.startEA))
             ea=seg.startEA
             while ea<seg.endEA:
-                if not checked_ea.has_key(ea):
-                    instruction=self.GetInstruction(ea)                    
-                    if instruction!=None:
-                        name=instruction['Name']
-                        comment=instruction['Comment']
-                        repeatable_comment=instruction['Repeatable Comment']
-                    else:
-                        name=self.GetName(ea)
-                        comment=self.GetCmt(ea)
-                        repeatable_comment=''
-                        
-                    if name or comment or repeatable_comment:
-                        function_notes.append((ea-self.ImageBase,'',0,'Name', name)) 
-                        function_notes.append((ea-self.ImageBase,'',0,'Comment', comment)) 
-                        function_notes.append((ea-self.ImageBase,'',0,'Repeatable Comment', repeatable_comment)) 
+                self.logger.debug('* ea=%x' % (ea))
+                if checked_ea.has_key(ea):
+                    ea+=get_item_size(ea)
+                    continue
+
+                instruction=self.GetInstruction(ea)                    
+                if instruction != None:
+                    name=instruction['Name']
+                    comment=instruction['Comment']
+                    repeatable_comment=instruction['Repeatable Comment']
+                else:
+                    name=self.GetName(ea)
+                    comment=self.GetCmt(ea)
+                    repeatable_comment=''
+                    
+                if name or comment or repeatable_comment:
+                    function_notes.append((ea-self.ImageBase,'',0,'Name', name)) 
+                    function_notes.append((ea-self.ImageBase,'',0,'Comment', comment)) 
+                    function_notes.append((ea-self.ImageBase,'',0,'Repeatable Comment', repeatable_comment)) 
+
                 ea+=get_item_size(ea)
+
         return function_notes
 
-    def SaveNotations(self, filename='Notations.db'):        
+    def SaveNotations(self, filename='Notations.db', hash_types=[]):        
         try:
             conn = sqlite3.connect(filename)
         except:
@@ -1313,19 +1331,19 @@ class Disasm:
         create_table_sql = """CREATE TABLE
                             IF NOT EXISTS Notations (
                                 id integer PRIMARY KEY,
-                                RVA text,
+                                RVA integer,
                                 HashType text NOT NULL,
                                 HashParam text,
                                 Hash text,
                                 Sequence integer,
                                 Type text,
                                 Value text,
-                                unique (Address, HashType, HashParam, Hash, Sequence, Type, Value)
+                                unique (RVA, HashType, HashParam, Hash, Sequence, Type, Value)
                             );"""
 
         c.execute(create_table_sql)
 
-        for (address, function_hash, sequence, type, value) in self.GetNotations():
+        for (address, function_hash, sequence, type, value) in self.GetNotations(hash_types=hash_types):
             try:
                 c.execute('INSERT INTO Notations (RVA, HashType, HashParam, Hash, Sequence, Type, Value) VALUES (?,?,?,?,?,?,?)',
                     (str(address), 'FunctionHash', '', function_hash, sequence, type, value))
@@ -1339,38 +1357,57 @@ class Disasm:
         conn.commit()
         conn.close()
         
-    def LoadNotations(self, filename='Notations.db',hash_types=['Op','imm_operand']):        
+    def LoadNotations(self, filename='Notations.db',hash_types=[]):        
         try:
             conn = sqlite3.connect(filename)
         except:
             return
 
         c = conn.cursor()
-        
-        information={}
-        for (id, address, hash_type, hash_param, hash, seq, type, value) in c.execute('SELECT * FROM Notations'):
-            address = int(address)
-            information[address]=[type, value]
 
-        for i in range(0,get_func_qty(),1):
-            func=getn_func(i)
+        notations={}
+        for (id, rva, hash_type, hash_param, hash, seq, type, value) in c.execute('SELECT * FROM Notations'):
+            notations[self.ImageBase+rva]=[type, value]
 
-            instructions=[]
-            for instruction in self.GetFunctionInstructions(func.startEA):
-                instructions.append(instruction)
+        if len(hash_types) > 0:
+            """
+            for i in range(0,get_func_qty(),1):
+                func=getn_func(i)
 
-            function_hash=self.GetInstructionsHash(instructions,hash_types)
-            
-            if information.has_key(function_hash):
-                [type, value]=information[function_hash]
-                address = func.startEA
-              
-                if type=='Comment':
-                    self.SetCmt(address, value)
-                if type=='Repeatable Comment':
-                    self.SetCmt(address, value, 1)
-                if type=='Name':
-                    self.SetName(address, value)
+                instructions=[]
+                for instruction in self.GetFunctionInstructions(func.startEA):
+                    instructions.append(instruction)
+
+                function_hash=self.GetInstructionsHash(instructions,hash_types)
+                
+                if notations.has_key(function_hash):
+                    [type, value]=notations[function_hash]
+                    address = func.startEA
+                
+                    if type=='Comment':
+                        self.SetCmt(address, value)
+                    if type=='Repeatable Comment':
+                        self.SetCmt(address, value, 1)
+                    if type=='Name':
+                        self.SetName(address, value)
+            """
+        else:
+            for i in range(0,get_segm_qty(),1):
+                seg=getnseg(i)
+                ea=seg.startEA
+                while ea<seg.endEA:
+                    if notations.has_key(ea):
+                        [type, value] = notations[ea]
+
+                    if type=='Comment':
+                        self.SetCmt(ea, value)
+                    if type=='Repeatable Comment':
+                        self.SetCmt(ea, value, 1)
+                    if type=='Name':
+                        self.SetName(ea, value)
+
+                    ea+=get_item_size(ea)
+
         
     def GenHash2Name(self,entries,hash_type_filter):
         hash_2_name={}
