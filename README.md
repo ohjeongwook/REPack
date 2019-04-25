@@ -1,12 +1,12 @@
 # REPack
 
-* Reverse Engieers toolkit for exploit/malware analysis
+Reverse Engieers toolkit for exploit/malware analysis
 
 ## IDA
 
 | File | Description |
 | :--- | :---------- |
-| Analysis.py | |
+| Analysis.py | Main IDA functionality wrapper file |
 | AutoAnalysis-ImmedatesToRefs.py | |
 | Breakpoints-All-DisplacementCalls.py | |
 | Breakpoints-All-IndirectCalls.py | |
@@ -27,10 +27,10 @@
 | Hunting.py | |
 | List-Export.py | |
 | List.py | |
-| Notations-Load.py | |
-| Notations-Save.py | |
-| Notations-Show.py | |
-| ResolveSymbolsFromDmp.py | |
+| Notations-Load.py | Load notations (function name, address name, comment) from a SQLite file |
+| Notations-Save.py | Save notations (function name, address name, comment) as a SQLite file |
+| Notations-Show.py | Show notations (function name, address name, comment) from a SQLite file |
+| ResolveSymbolsFromDmp.py | Resolve unresolved symbols by leveraing process dump file |
 | RunIDAScript.py | |
 | Server.py | |
 | UI.py | |
