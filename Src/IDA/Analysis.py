@@ -626,9 +626,6 @@ class Disasm:
         return GetManyBytes(ea, ItemSize(ea))        
 
     def GetInstruction(self,current,filter=None):
-        #if not isCode(GetFlags(current)):
-        #    return None
-
         instruction={}
         instruction['Type']="Instruction"
         instruction['RVA']=current-self.ImageBase
@@ -1253,7 +1250,7 @@ class Disasm:
 
         return loops_list
 
-    def GetInstructionNotations(self,hash_types=['Op','imm_operand']):
+    def GetNotations(self,hash_types=['Op','imm_operand']):
         function_notes=[]
         checked_ea={}
         for i in range(0,get_func_qty(),1):
@@ -1269,7 +1266,7 @@ class Disasm:
             sequence=0
             for instruction in instructions:
                 checked_ea[instruction['Address']]=1
-                address=instruction['Address']
+                address=instruction['RVA']
                 if instruction['Name']:
                     self.logger.debug('* \t+%.3x Name: %s' % (sequence, instruction['Name']))
                     function_notes.append((address, function_hash, sequence, 'Name', instruction['Name']))
@@ -1299,13 +1296,13 @@ class Disasm:
                         repeatable_comment=''
                         
                     if name or comment or repeatable_comment:
-                        function_notes.append((ea,'',0,'Name', name)) 
-                        function_notes.append((ea,'',0,'Comment', comment)) 
-                        function_notes.append((ea,'',0,'Repeatable Comment', repeatable_comment)) 
+                        function_notes.append((ea-self.ImageBase,'',0,'Name', name)) 
+                        function_notes.append((ea-self.ImageBase,'',0,'Comment', comment)) 
+                        function_notes.append((ea-self.ImageBase,'',0,'Repeatable Comment', repeatable_comment)) 
                 ea+=get_item_size(ea)
         return function_notes
 
-    def SaveInstructionNotations(self, filename='Notations.db'):        
+    def SaveNotations(self, filename='Notations.db'):        
         try:
             conn = sqlite3.connect(filename)
         except:
@@ -1316,7 +1313,7 @@ class Disasm:
         create_table_sql = """CREATE TABLE
                             IF NOT EXISTS Notations (
                                 id integer PRIMARY KEY,
-                                Address text,
+                                RVA text,
                                 HashType text NOT NULL,
                                 HashParam text,
                                 Hash text,
@@ -1328,9 +1325,9 @@ class Disasm:
 
         c.execute(create_table_sql)
 
-        for (address, function_hash, sequence, type, value) in self.GetInstructionNotations():
+        for (address, function_hash, sequence, type, value) in self.GetNotations():
             try:
-                c.execute('INSERT INTO Notations (Address, HashType, HashParam, Hash, Sequence, Type, Value) VALUES (?,?,?,?,?,?,?)',
+                c.execute('INSERT INTO Notations (RVA, HashType, HashParam, Hash, Sequence, Type, Value) VALUES (?,?,?,?,?,?,?)',
                     (str(address), 'FunctionHash', '', function_hash, sequence, type, value))
             except:
                 print 'address:', address
@@ -1342,7 +1339,7 @@ class Disasm:
         conn.commit()
         conn.close()
         
-    def LoadInstructionNotations(self, filename='Notations.db',hash_types=['Op','imm_operand']):        
+    def LoadNotations(self, filename='Notations.db',hash_types=['Op','imm_operand']):        
         try:
             conn = sqlite3.connect(filename)
         except:
