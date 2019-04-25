@@ -39,7 +39,17 @@
 
 | File | Description |
 | :--- | :---------- |
-| PETool.py | Tool to fix section from the carved PE image: %REPACK%\Src\PE\PETool.py -c fix msidntfs.bin msidntfs.fixed.bin  |
+| PETool.py | Tool to fix section from the carved PE image |
+
+### Examples
+
+1. Fix section from PE image filemsidntfs
+
+The msidntfs.bin is a carved PE image from an infected process. Use PETool.py to fix sections and align them so that the file can be opened from PE reverse engineering tools like IDA.
+
+```
+%REPACK%\Src\PE\PETool.py -c fix msidntfs.bin msidntfs.fixed.bin
+```
 
 ## WinDBG
 
