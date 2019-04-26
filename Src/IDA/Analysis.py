@@ -735,17 +735,13 @@ class Disasm:
 
         return line
         
-    def GetCmt(self,current):
-        full_cmt=''
+    def GetCmt(self,current,get_repeatable_cmt=False):
+        if get_repeatable_cmt:
+            flag=1    
+        else:
+            flag=0
 
-        cmt=get_cmt(current,0)
-        if cmt!=None and cmt:
-            full_cmt+=cmt
-
-        repeatable_cmt=get_cmt(current,1)
-        if repeatable_cmt!=None and repeatable_cmt:
-            full_cmt+=repeatable_cmt
-        return full_cmt
+        return get_cmt(current,flag)
 
     def GetInstructionsByRange(self,start=None,end=None,filter=None):
         if start==None or end==None:
@@ -1272,16 +1268,15 @@ class Disasm:
                     ea+=get_item_size(ea)
                     continue
 
-                name=self.GetName(ea)
-                comment=self.GetCmt(ea)
-                repeatable_comment=''
-                    
+                name=self.GetName(ea)                  
                 if name:
                     function_notes.append((ea-self.ImageBase,'',0,'Name', name))
 
+                comment=self.GetCmt(ea)
                 if comment:
                     function_notes.append((ea-self.ImageBase,'',0,'Comment', comment))
 
+                repeatable_comment=self.GetCmt(ea, True)
                 if repeatable_comment:
                     function_notes.append((ea-self.ImageBase,'',0,'Repeatable Comment', repeatable_comment))
 
