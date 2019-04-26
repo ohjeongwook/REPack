@@ -55,6 +55,7 @@ class Util:
             name.startswith("unk_") or \
             name.startswith("dbl_") or \
             name.startswith("stru_") or \
+            name.startswith("byte_") or \
             name.startswith("off_"):
             return True
         return False
@@ -1323,7 +1324,10 @@ class Disasm:
         c = conn.cursor()
 
         notations={}
-        for (id, rva, hash_type, hash_param, hash, seq, type, value) in c.execute('SELECT * FROM Notations'):
+        for (rva, hash_type, hash_param, hash, seq, type, value) in c.execute('SELECT RVA, HashType, HashParam, Hash, Sequence, Type, Value FROM Notations'):
+            if rva == None or rva == '':
+                continue
+
             notations[self.ImageBase+rva]=[type, value]
 
         if len(hash_types) > 0:
@@ -1367,7 +1371,6 @@ class Disasm:
                         self.IDAUtil.SetName(current_address, value)
 
                     current_address+=self.IDAUtil.GetItemSize(current_address)
-
         
     def GenHash2Name(self,entries,hash_type_filter):
         hash_2_name={}
