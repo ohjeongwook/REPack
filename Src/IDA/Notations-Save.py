@@ -8,7 +8,7 @@ import pprint
 import logging
 import json
 
-import Analysis
+import Disasm
 
 logging.basicConfig(level=logging.DEBUG)
 logger=logging.getLogger(__name__)

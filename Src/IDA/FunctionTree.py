@@ -1,4 +1,4 @@
-import Analysis
+import Disasm
 
 disasm=Analysis.Disasm()
 (function_list,function_instructions)=disasm.GetFunctionTree(threshold=10000)

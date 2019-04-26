@@ -18,7 +18,7 @@ import idaapi
 import idautils
 from idaapi import PluginForm
 
-import Analysis
+import Disasm
 import Disasm.Vex
 import Disasm.Tool
 from Util.Config import *
