@@ -12,13 +12,143 @@ from idaapi import *
 from idautils import *
 from idc import *
 import idc
+
 from optparse import OptionParser, Option
+import OperandTypes
+
+class Util:
+    def GetSelectionStart(self):
+        (ea,end) = self.GetSelection()
+        return ea
+
+    def GetFunctionAddress(self,ea=None):
+        if ea==None:
+            ea=self.GetSelectionStart()
+
+        func=get_func(ea)
+
+        if func:
+            return func.startEA
+        else:
+            return -1
+
+    """Names"""
+    def GetName(self, current_address):
+        return get_true_name(current_address)
+
+    def GetFuncName(self,ea,demangle=True):
+        name=get_func_name(ea)
+        demangled_name=idc.Demangle(name, idc.GetLongPrm(idc.INF_SHORT_DN))
+        
+        if demangled_name==None:
+            return name
+        else:
+            return demangled_name
+
+    def IsReservedName(self,name):
+        if name.startswith("sub_") or \
+            name.startswith("loc_") or \
+            name.startswith("locret_") or \
+            name.startswith("dword_") or \
+            name.startswith("word_") or \
+            name.startswith("unknown_") or \
+            name.startswith("unk_") or \
+            name.startswith("dbl_") or \
+            name.startswith("stru_") or \
+            name.startswith("off_"):
+            return True
+        return False
+
+    def SetCmt(self,ea,cmt,flag=0):
+        set_cmt(ea,str(cmt),flag)
+    
+    def SetName(self,ea,name):
+        set_name(ea,str(name))
+
+    def GetSegName(self,addr):
+        for i in range(0,get_segm_qty(),1):
+            seg=getnseg(i)
+            seg_name=get_segm_name(seg.startEA)
+            if seg.startEA<=addr and addr<=seg.endEA:
+                return seg_name
+        return ''
+
+    """REFs"""
+    def GetItemSize(self,ea):
+        return get_item_size(ea)
+
+    def GetNextItem(self,ea):
+        return ea+get_item_size(ea)
+
+    def GetCREFFrom(self,ea):
+        refs=[]
+        ref=get_first_cref_from(ea)
+        while ref!=BADADDR:           
+            if ea+get_item_size(ea)==ref:
+                refs.append(('Next',ref))
+            else:
+                decode_insn(ea)
+                if cmd.get_canon_feature() & CF_CALL:
+                    refs.append(('Call',ref))
+                else:
+                    refs.append(('Jmp',ref))
+
+            ref=get_next_cref_from(ea,ref)
+        return refs
+        
+    def GetJMPCREFFrom(self,ea):
+        jmp_crefs=0
+        for (cref_type, cref) in self.GetCREFFrom(ea):
+            if cref_type=='Jmp':
+                jmp_crefs.append(cref)
+        return jmp_crefs
+
+    def GetCREFTo(self,ea):
+        refs=[]
+        ref=get_first_cref_to(ea)
+        while ref!=BADADDR:
+            if ref+get_item_size(ref)==ea:
+                refs.append(('Next',ref))
+            else:
+                decode_insn(ref)
+                if cmd.get_canon_feature() & CF_CALL:
+                    refs.append(('Call',ref))
+                else:
+                    refs.append(('Jmp',ref))
+            ref=get_next_cref_to(ea,ref)
+
+        return refs
+
+    def GetJMPCREFTo(self,ea):
+        jmp_crefs=0
+        for (cref_type, cref) in self.GetCREFTo(ea):
+            if cref_type=='Jmp':
+                jmp_crefs.append(cref)
+        return jmp_crefs
+
+    def GetDREFFrom(self,ea):
+        refs=[]
+        ref=get_first_dref_from(ea)
+        while ref!=BADADDR:
+            refs.append(ref)
+            ref=get_next_dref_from(ea,ref)
+            
+        return refs
+
+    def GetDREFTo(self,ea):
+        refs=[]
+        ref=get_first_dref_to(ea)
+        while ref!=BADADDR:
+            refs.append(ref)
+            ref=get_next_dref_to(ea,ref)
+            
+        return refs
 
 class Block:
     DebugLevel=0
     def __init__(self,addr=None):
         self.logger=logging.getLogger(__name__)
-        self.IDAUtil=Disasm()
+        self.IDAUtil=Util()
         if addr==None:
             self.Address=self.IDAUtil.GetSelectionStart()
         else:
@@ -168,6 +298,8 @@ class Disasm:
     
     def __init__(self,parse_args=True):
         self.logger=logging.getLogger(__name__)
+        self.IDAUtil=Util()
+
         self.ImageName=get_root_filename()
         self.ImageBase=get_imagebase()
         self.Parser=OptionParser(usage="usage: %prog [options] args")
@@ -179,54 +311,6 @@ class Disasm:
 
         self.WaitAnalysis()
 
-    """ Data Type """
-
-    """
-    o_void     =  o_void      #  No Operand                           ----------
-    o_reg      =  o_reg       #  General Register (al,ax,es,ds...)    reg
-    o_mem      =  o_mem       #  Direct Memory Reference  (DATA)      addr
-    o_phrase   =  o_phrase    #  Memory Ref [Base Reg + Index Reg]    phrase
-    o_displ    =  o_displ     #  Memory Reg [Base Reg + Index Reg + Displacement] phrase+addr
-    o_imm      =  o_imm       #  Immediate Value                      value
-    o_far      =  o_far       #  Immediate Far Address  (CODE)        addr
-    o_near     =  o_near      #  Immediate Near Address (CODE)        addr
-    """
-
-    OperandTypes={}
-    OperandTypes[o_void]="Void"
-    OperandTypes[o_far]="Far"
-    OperandTypes[o_near]="Near"
-    OperandTypes[o_reg]="Register"
-    OperandTypes[o_imm]="Immediate"                    
-    OperandTypes[o_mem]="Memory"
-    OperandTypes[o_displ]="Displacement"
-    OperandTypes[o_phrase]="Phrase"
-    
-    """
-    dt_byte = 0 #  8 bit
-    dt_word = 1 #  16 bit
-    dt_dword = 2 #  32 bit
-    dt_float = 3 #  4 byte
-    dt_double = 4 #  8 byte
-    dt_tbyte = 5 #  variable size (ph.tbyte_size)
-    dt_packreal = 6 #  packed real format for mc68040
-    dt_qword = 7 #  64 bit
-    dt_byte16 = 8 #  128 bit
-    dt_code = 9 #  ptr to code (not used?)
-    dt_void = 10 #  none
-    dt_fword = 11 #  48 bit
-    dt_bitfild = 12 #  bit field (mc680x0)
-    dt_string = 13 #  pointer to asciiz string
-    dt_unicode = 14 #  pointer to unicode string
-    dt_3byte = 15 #  3-byte data
-    dt_ldbl = 16 #  long double (which may be different from tbyte)
-    dt_byte32 = 17 # 256 bit
-    dt_byte64 = 18 # 512 bit
-    """
-    DTypeStr=["Byte", "Word", "DWORD", "Float", "Double",
-              "TByte", "PackReal", "QWORD", "BYTE16", "CODE", 
-              "Void", "FWORD", "BitFild", "String", "Unicode",
-              "3Byte","LDBL","BYTE32","BYTE64"]
 
     def GetNativeSize(self):
         try:
@@ -270,47 +354,6 @@ class Disasm:
         
         return address_info
 
-    """ Name """    
-
-    def GetName(self, current_address):
-        return get_true_name(current_address)
-
-    def GetFuncName(self,ea,demangle=True):
-        name=get_func_name(ea)
-        demangled_name=idc.Demangle(name, idc.GetLongPrm(idc.INF_SHORT_DN))
-        
-        if demangled_name==None:
-            return name
-        else:
-            return demangled_name
-
-    def IsReservedName(self,name):
-        if name.startswith("sub_") or \
-            name.startswith("loc_") or \
-            name.startswith("locret_") or \
-            name.startswith("dword_") or \
-            name.startswith("word_") or \
-            name.startswith("unknown_") or \
-            name.startswith("unk_") or \
-            name.startswith("dbl_") or \
-            name.startswith("stru_") or \
-            name.startswith("off_"):
-            return True
-        return False
-
-    def SetCmt(self,ea,cmt,flag=0):
-        set_cmt(ea,str(cmt),flag)
-    
-    def SetName(self,ea,name):
-        set_name(ea,str(name))
-
-    def GetSegName(self,addr):
-        for i in range(0,get_segm_qty(),1):
-            seg=getnseg(i)
-            seg_name=get_segm_name(seg.startEA)
-            if seg.startEA<=addr and addr<=seg.endEA:
-                return seg_name
-        return ''
 
     def InInSegment(self,addr):
         for i in range(0,get_segm_qty(),1):
@@ -354,81 +397,6 @@ class Disasm:
 
         return (start,end)
 
-    def GetSelectionStart(self):
-        (ea,end) = self.GetSelection()
-        return ea
-
-    """REFs"""
-    def GetItemSize(self,ea):
-        return get_item_size(ea)
-
-    def GetNext(self,ea):
-        return ea+get_item_size(ea)
-
-    def GetCREFFrom(self,ea):
-        refs=[]
-        ref=get_first_cref_from(ea)
-        while ref!=BADADDR:           
-            if ea+get_item_size(ea)==ref:
-                refs.append(('Next',ref))
-            else:
-                decode_insn(ea)
-                if cmd.get_canon_feature() & CF_CALL:
-                    refs.append(('Call',ref))
-                else:
-                    refs.append(('Jmp',ref))
-
-            ref=get_next_cref_from(ea,ref)
-        return refs
-        
-    def GetJMPCREFFrom(self,ea):
-        jmp_crefs=0
-        for (cref_type, cref) in self.GetCREFFrom(ea):
-            if cref_type=='Jmp':
-                jmp_crefs.append(cref)
-        return jmp_crefs
-
-    def GetCREFTo(self,ea):
-        refs=[]
-        ref=get_first_cref_to(ea)
-        while ref!=BADADDR:
-            if ref+get_item_size(ref)==ea:
-                refs.append(('Next',ref))
-            else:
-                decode_insn(ref)
-                if cmd.get_canon_feature() & CF_CALL:
-                    refs.append(('Call',ref))
-                else:
-                    refs.append(('Jmp',ref))
-            ref=get_next_cref_to(ea,ref)
-
-        return refs
-
-    def GetJMPCREFTo(self,ea):
-        jmp_crefs=0
-        for (cref_type, cref) in self.GetCREFTo(ea):
-            if cref_type=='Jmp':
-                jmp_crefs.append(cref)
-        return jmp_crefs
-
-    def GetDREFFrom(self,ea):
-        refs=[]
-        ref=get_first_dref_from(ea)
-        while ref!=BADADDR:
-            refs.append(ref)
-            ref=get_next_dref_from(ea,ref)
-            
-        return refs
-
-    def GetDREFTo(self,ea):
-        refs=[]
-        ref=get_first_dref_to(ea)
-        while ref!=BADADDR:
-            refs.append(ref)
-            ref=get_next_dref_to(ea,ref)
-            
-        return refs
-        
     """Utility"""
     def DumpBytes(self,ea,length):
         return GetManyBytes(ea, length)
@@ -491,9 +459,9 @@ class Disasm:
                 self.PrintOperandStructure(op)
         
             operand_repr={}
-            operand_repr['DataType']=self.DTypeStr[operand.dtyp]
-            if self.OperandTypes.has_key(operand.type):
-                operand_repr['Type']=self.OperandTypes[operand.type]
+            operand_repr['DataType']=OperandTypes.DTypeStr[operand.dtyp]
+            if OperandTypes.Values.has_key(operand.type):
+                operand_repr['Type']=OperandTypes.Values[operand.type]
             else:
                 operand_repr['Type']='%x' % operand.type
 
@@ -664,7 +632,7 @@ class Disasm:
 
             if is_reg_call:
                 if self.Debug>2:
-                    self.logger.debug('%x %s %s (%s)', current, op, operand_str, self.OperandTypes[operand.type])
+                    self.logger.debug('%x %s %s (%s)', current, op, operand_str, OperandTypes.Values[operand.type])
                 instruction['IsIndirectRegCall']=True
 
         use_flags=[CF_USE1,CF_USE2,CF_USE3,CF_USE4,CF_USE5,CF_USE6]
@@ -876,17 +844,6 @@ class Disasm:
         
         return functions
 
-    def GetFunctionAddress(self,ea=None):
-        if ea==None:
-            ea=self.GetSelectionStart()
-
-        func=get_func(ea)
-
-        if func:
-            return func.startEA
-        else:
-            return -1
-
     def GetStackArgs(self,ea):
         stack=GetFrame(ea)
         args=[]
@@ -909,7 +866,7 @@ class Disasm:
 
     def _GetFunctionInstructions(self,ea=None,filter=None,type='Instruction'):
         if ea==None:
-            ea=self.GetSelectionStart()
+            ea=self.IDAUtil.GetSelectionStart()
 
         func=get_func(ea)
         if func:
@@ -1090,7 +1047,7 @@ class Disasm:
 
     def GetFunctionRefs(self,ea=None):
         if ea==None:
-            ea=self.GetSelectionStart()
+            ea=self.IDAUtil.GetSelectionStart()
 
         func=get_func(ea)
 
@@ -1385,28 +1342,31 @@ class Disasm:
                     address = func.startEA
                 
                     if type=='Comment':
-                        self.SetCmt(address, value)
+                        self.IDAUtil.SetCmt(address, value)
                     if type=='Repeatable Comment':
-                        self.SetCmt(address, value, 1)
+                        self.IDAUtil.SetCmt(address, value, 1)
                     if type=='Name':
-                        self.SetName(address, value)
+                        self.IDAUtil.SetName(address, value)
             """
         else:
             for i in range(0,get_segm_qty(),1):
                 seg=getnseg(i)
-                ea=seg.startEA
-                while ea<seg.endEA:
-                    if notations.has_key(ea):
-                        [type, value] = notations[ea]
+                current_address=seg.startEA
+                while current_address<seg.endEA:
+                    if not notations.has_key(current_address):
+                        current_address+=get_item_size(current_address)
+                        continue
+
+                    [type, value] = notations[current_address]
 
                     if type=='Comment':
-                        self.SetCmt(ea, value)
+                        self.IDAUtil.SetCmt(current_address, value)
                     if type=='Repeatable Comment':
-                        self.SetCmt(ea, value, 1)
+                        self.IDAUtil.SetCmt(current_address, value, 1)
                     if type=='Name':
-                        self.SetName(ea, value)
+                        self.IDAUtil.SetName(current_address, value)
 
-                    ea+=get_item_size(ea)
+                    current_address+=self.IDAUtil.GetItemSize(current_address)
 
         
     def GenHash2Name(self,entries,hash_type_filter):
@@ -1530,7 +1490,7 @@ class Disasm:
                                 interesting_call=False
 
                         if interesting_call:
-                            self.logger.debug('%x %s %s (%s)', current, op, operand_str, self.OperandTypes[operand.type])
+                            self.logger.debug('%x %s %s (%s)', current, op, operand_str, OperandTypes.Values[operand.type])
                             instructions.append(self.GetInstruction(current))
 
                 current+=get_item_size(current)
@@ -1542,7 +1502,7 @@ class Disasm:
         for seg_ea in Segments():
             for ea in Heads(seg_ea,SegEnd(seg_ea)):
                 if isCode(GetFlags(ea)):
-                    if len(self.GetCREFTo(ea))==0:
+                    if len(self.IDAUtil.GetCREFTo(ea))==0:
                         func=get_func(ea)
                         if func is None or func.startEA!=ea:
                             unrecognized_functions.append(ea)
@@ -1557,7 +1517,7 @@ class Disasm:
         utility_functions={}
         for function_info in self.GetFunctions():
             ea=function_info['Address']
-            cref_to=self.GetCREFTo(ea)
+            cref_to=self.IDAUtil.GetCREFTo(ea)
 
             if len(cref_to)>=threshold:
                 utility_functions[ea]=True
@@ -1572,7 +1532,7 @@ class Disasm:
         utility_functions=self.FindUtilityFunctions(threshold)        
 
         def GetCallRefs(call_ea,ea,level=0):
-            func_name=self.GetFuncName(ea)
+            func_name=self.IDAUtil.GetFuncName(ea)
             function_list.append((level,func_name,ea,call_ea))
             
             if utility_functions.has_key(ea):
