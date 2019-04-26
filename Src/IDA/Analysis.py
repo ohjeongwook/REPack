@@ -18,7 +18,7 @@ class Block:
     DebugLevel=0
     def __init__(self,addr=None):
         self.logger=logging.getLogger(__name__)
-        self.IDAUtil=Util()
+        self.IDAUtil=Disasm()
         if addr==None:
             self.Address=self.IDAUtil.GetSelectionStart()
         else:
@@ -161,7 +161,7 @@ class Block:
 
     def GetFuncName(self,demangle=True):    
         for root in self.GetRootBlocks():
-            return self.IDAUtil.GetName(root,demangle=demangle)
+            return self.IDAUtil.GetFuncName(root,demangle=demangle)
 
 class Disasm:
     Debug=0
@@ -271,7 +271,11 @@ class Disasm:
         return address_info
 
     """ Name """    
-    def GetName(self,ea,demangle=True):
+
+    def GetName(self, current_address):
+        return get_true_name(current_address)
+
+    def GetFuncName(self,ea,demangle=True):
         name=get_func_name(ea)
         demangled_name=idc.Demangle(name, idc.GetLongPrm(idc.INF_SHORT_DN))
         
@@ -280,7 +284,7 @@ class Disasm:
         else:
             return demangled_name
 
-    def IsDefaultName(self,name):
+    def IsReservedName(self,name):
         if name.startswith("sub_") or \
             name.startswith("loc_") or \
             name.startswith("locret_") or \
@@ -288,6 +292,8 @@ class Disasm:
             name.startswith("word_") or \
             name.startswith("unknown_") or \
             name.startswith("unk_") or \
+            name.startswith("dbl_") or \
+            name.startswith("stru_") or \
             name.startswith("off_"):
             return True
         return False
@@ -684,7 +690,7 @@ class Disasm:
             instruction['Operands'].append(operand_repr)
         
         name=get_true_name(current)
-        if name!=None and name and not self.IsDefaultName(name):
+        if name!=None and name and not self.IsReservedName(name):
             instruction['Name']=name
         else:
             instruction['Name']=''
@@ -735,13 +741,16 @@ class Disasm:
 
         return line
         
-    def GetCmt(self,current,get_repeatable_cmt=False):
+    def GetCmt(self,current_address,get_repeatable_cmt=False):
+        if not has_cmt(current_address):
+            return None
+
         if get_repeatable_cmt:
             flag=1    
         else:
             flag=0
 
-        return get_cmt(current,flag)
+        return get_cmt(current_address,flag)
 
     def GetInstructionsByRange(self,start=None,end=None,filter=None):
         if start==None or end==None:
@@ -1262,25 +1271,25 @@ class Disasm:
 
         for i in range(0,get_segm_qty(),1):
             seg=getnseg(i)
-            ea=seg.startEA
-            while ea<seg.endEA:
-                if checked_addresses.has_key(ea):
-                    ea+=get_item_size(ea)
+            current_address=seg.startEA
+            while current_address < seg.endEA:
+                if checked_addresses.has_key(current_address):
+                    current_address += get_item_size(current_address)
                     continue
 
-                name=self.GetName(ea)                  
-                if name:
-                    function_notes.append((ea-self.ImageBase,'',0,'Name', name))
+                name=self.GetName(current_address)
+                if name!=None and name and not self.IsReservedName(name):
+                    function_notes.append((current_address-self.ImageBase,'',0,'Name', name))
 
-                comment=self.GetCmt(ea)
-                if comment:
-                    function_notes.append((ea-self.ImageBase,'',0,'Comment', comment))
+                comment=self.GetCmt(current_address)
+                if comment != None:
+                    function_notes.append((current_address-self.ImageBase,'',0,'Comment', comment))
 
-                repeatable_comment=self.GetCmt(ea, True)
-                if repeatable_comment:
-                    function_notes.append((ea-self.ImageBase,'',0,'Repeatable Comment', repeatable_comment))
+                repeatable_comment=self.GetCmt(current_address, True)
+                if repeatable_comment != None:
+                    function_notes.append((current_address-self.ImageBase,'',0,'Repeatable Comment', repeatable_comment))
 
-                ea+=get_item_size(ea)
+                current_address += get_item_size(current_address)
 
         return function_notes
 
@@ -1466,7 +1475,7 @@ class Disasm:
 
                     value=names_and_comments[address_str][data_type]
 
-                    if self.IsDefaultName(value):
+                    if self.IsReservedName(value):
                         continue
 
                     self.logger.debug('\t%x: %s %s (orig address=%x/function=%x (diff=%x))', current_address,data_type,value, address,function_address,address-function_address)
@@ -1563,7 +1572,7 @@ class Disasm:
         utility_functions=self.FindUtilityFunctions(threshold)        
 
         def GetCallRefs(call_ea,ea,level=0):
-            func_name=self.GetName(ea)
+            func_name=self.GetFuncName(ea)
             function_list.append((level,func_name,ea,call_ea))
             
             if utility_functions.has_key(ea):
