@@ -16,6 +16,9 @@ import idc
 from optparse import OptionParser, Option
 import OperandTypes
 
+from Util import *
+from Block import *
+
 class Disasm:
     Debug=0
     

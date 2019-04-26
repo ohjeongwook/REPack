@@ -8,13 +8,13 @@ import pprint
 import logging
 import json
 
-import Disasm
+from Disasm import Disasm
 
 logging.basicConfig(level=logging.DEBUG)
 logger=logging.getLogger(__name__)
 
 if __name__=='__main__':
-    disasm=Analysis.Disasm()
+    disasm=Disasm()
     
     if len(disasm.Args)==0:
         import UI
