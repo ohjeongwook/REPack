@@ -1259,7 +1259,38 @@ class Disasm:
 
     def GetNotations(self,hash_types=['Op','imm_operand']):
         function_notes=[]
-        checked_ea={}
+        checked_addresses={}
+
+        if len(hash_types)>0:
+            checked_addresses = self._GetFunctionNotations(hash_types)
+
+        for i in range(0,get_segm_qty(),1):
+            seg=getnseg(i)
+            ea=seg.startEA
+            while ea<seg.endEA:
+                if checked_addresses.has_key(ea):
+                    ea+=get_item_size(ea)
+                    continue
+
+                name=self.GetName(ea)
+                comment=self.GetCmt(ea)
+                repeatable_comment=''
+                    
+                if name:
+                    function_notes.append((ea-self.ImageBase,'',0,'Name', name))
+
+                if comment:
+                    function_notes.append((ea-self.ImageBase,'',0,'Comment', comment))
+
+                if repeatable_comment:
+                    function_notes.append((ea-self.ImageBase,'',0,'Repeatable Comment', repeatable_comment))
+
+                ea+=get_item_size(ea)
+
+        return function_notes
+
+    def _GetFunctionNotations(self, hash_types):
+        checked_addresses={}
         for i in range(0,get_func_qty(),1):
             func=getn_func(i)
 
@@ -1267,58 +1298,23 @@ class Disasm:
             for instruction in self.GetFunctionInstructions(func.startEA):
                 instructions.append(instruction)
 
-            if len(hash_types)>0:
-                function_hash=self.GetInstructionsHash(instructions,hash_types)
-                self.logger.debug('* %s' % (function_hash))
-            else:
-                function_hash=''
+            function_hash=self.GetInstructionsHash(instructions,hash_types)
 
             sequence=0
             for instruction in instructions:
-                checked_ea[instruction['Address']]=1
-                address=instruction['RVA']
+                checked_addresses[instruction['Address']]=1
+                rva=instruction['RVA']
                 if instruction['Name']:
-                    self.logger.debug('* \t+Name: %s' % (instruction['Name']))
-                    function_notes.append((address, function_hash, sequence, 'Name', instruction['Name']))
+                    function_notes.append((rva, function_hash, sequence, 'Name', instruction['Name']))
 
                 if instruction['Comment']:
-                    self.logger.debug('* \t+Comment: %s' % (instruction['Comment']))
-                    function_notes.append((address, function_hash, sequence, 'Comment', instruction['Comment']))
+                    function_notes.append((rva, function_hash, sequence, 'Comment', instruction['Comment']))
 
                 if instruction['Repeatable Comment']:
-                    self.logger.debug('* \t+Repeatable Comment: %s' % (instruction['Repeatable Comment']))
-                    function_notes.append((address, function_hash, sequence, 'Repeatable Comment', instruction['Repeatable Comment']))
+                    function_notes.append((rva, function_hash, sequence, 'Repeatable Comment', instruction['Repeatable Comment']))
                 sequence+=1
 
-        self.logger.debug('Scanning segments for non-instructions and non-scanned instructions')
-        for i in range(0,get_segm_qty(),1):
-            seg=getnseg(i)
-            self.logger.debug('* seg.startEA=%x' % (seg.startEA))
-            ea=seg.startEA
-            while ea<seg.endEA:
-                self.logger.debug('* ea=%x' % (ea))
-                if checked_ea.has_key(ea):
-                    ea+=get_item_size(ea)
-                    continue
-
-                instruction=self.GetInstruction(ea)                    
-                if instruction != None:
-                    name=instruction['Name']
-                    comment=instruction['Comment']
-                    repeatable_comment=instruction['Repeatable Comment']
-                else:
-                    name=self.GetName(ea)
-                    comment=self.GetCmt(ea)
-                    repeatable_comment=''
-                    
-                if name or comment or repeatable_comment:
-                    function_notes.append((ea-self.ImageBase,'',0,'Name', name)) 
-                    function_notes.append((ea-self.ImageBase,'',0,'Comment', comment)) 
-                    function_notes.append((ea-self.ImageBase,'',0,'Repeatable Comment', repeatable_comment)) 
-
-                ea+=get_item_size(ea)
-
-        return function_notes
+        return checked_addresses
 
     def SaveNotations(self, filename='Notations.db', hash_types=[]):        
         try:
