@@ -1053,10 +1053,19 @@ class Disasm:
             if rva == None or rva == '':
                 continue
 
-            notations[self.ImageBase+rva]=[type, value]
+            current_address = self.ImageBase+rva
+
+            if len(hash_types) > 0:
+                notations[current_address]=[type, value]
+            else:
+                if type=='Comment':
+                    self.IDAUtil.SetCmt(current_address, value)
+                elif type=='Repeatable Comment':
+                    self.IDAUtil.SetCmt(current_address, value, 1)
+                elif type=='Name':
+                    self.IDAUtil.SetName(current_address, value)            
 
         if len(hash_types) > 0:
-            """
             for i in range(0,get_func_qty(),1):
                 func=getn_func(i)
 
@@ -1065,7 +1074,7 @@ class Disasm:
                     instructions.append(instruction)
 
                 function_hash=self.GetInstructionsHash(instructions,hash_types)
-                
+
                 if notations.has_key(function_hash):
                     [type, value]=notations[function_hash]
                     address = func.startEA
@@ -1076,26 +1085,6 @@ class Disasm:
                         self.IDAUtil.SetCmt(address, value, 1)
                     if type=='Name':
                         self.IDAUtil.SetName(address, value)
-            """
-        else:
-            for i in range(0,get_segm_qty(),1):
-                seg=getnseg(i)
-                current_address=seg.startEA
-                while current_address<seg.endEA:
-                    if not notations.has_key(current_address):
-                        current_address+=get_item_size(current_address)
-                        continue
-
-                    [type, value] = notations[current_address]
-
-                    if type=='Comment':
-                        self.IDAUtil.SetCmt(current_address, value)
-                    if type=='Repeatable Comment':
-                        self.IDAUtil.SetCmt(current_address, value, 1)
-                    if type=='Name':
-                        self.IDAUtil.SetName(current_address, value)
-
-                    current_address+=self.IDAUtil.GetItemSize(current_address)
         
     def GenHash2Name(self,entries,hash_type_filter):
         hash_2_name={}
