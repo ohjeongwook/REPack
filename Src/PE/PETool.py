@@ -49,13 +49,13 @@ class PEFile:
         print 'Max offset: %x' % max_offset
         
     def FixSections(self, output_filename):
-        print 'ImageBase: %x' % (pe.OPTIONAL_HEADER.ImageBase)
-        print 'AddressOfEntryPoint: %x' % (pe.OPTIONAL_HEADER.AddressOfEntryPoint)
-        print 'NumberOfRvaAndSizes: %x' % (pe.OPTIONAL_HEADER.NumberOfRvaAndSizes)
-        print 'NumberOfSections: %x' % (pe.FILE_HEADER.NumberOfSections)
+        print 'ImageBase: %x' % (self.PE.OPTIONAL_HEADER.ImageBase)
+        print 'AddressOfEntryPoint: %x' % (self.PE.OPTIONAL_HEADER.AddressOfEntryPoint)
+        print 'NumberOfRvaAndSizes: %x' % (self.PE.OPTIONAL_HEADER.NumberOfRvaAndSizes)
+        print 'NumberOfSections: %x' % (self.PE.FILE_HEADER.NumberOfSections)
 
         sections={}
-        for section in pe.sections:
+        for section in self.PE.sections:
             print '\tName: [%s]' % section.Name
             print '\tVirtualAddress: %x' % section.VirtualAddress
             print '\tMisc_VirtualSize: %x' % section.Misc_VirtualSize
@@ -67,9 +67,9 @@ class PEFile:
             sections[section.Name]=(section.PointerToRawData,section.SizeOfRawData)	
 
         if options.image_base:
-            pe.OPTIONAL_HEADER.ImageBase=int(options.image_base,16)
+            self.PE.OPTIONAL_HEADER.ImageBase=int(options.image_base,16)
 
-        pe.write(output_filename)
+        self.PE.write(output_filename)
 
 
 if __name__=='__main__':
