@@ -1,2 +1,0 @@
-setx REPACK "%CD%"
-pause
